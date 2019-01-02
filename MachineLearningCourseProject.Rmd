@@ -48,7 +48,7 @@ The accuracy on the cross validation set is ~99%, meaning that the out-of-sample
 ```{r random_forest_model, message = FALSE}
 control.parms <- trainControl(method="cv", 5)
 rf.model <- train(classe ~ ., data=train_training, method="rf",
-                  trControl=control.parms, ntree=101)
+                  trControl=control.parms, ntree=101,verbose = FALSE)
 rf.model
 rf.predict <- predict(rf.model, train_cv)
 confusionMatrix(train_cv$classe, rf.predict)
@@ -59,7 +59,7 @@ confusionMatrix(train_cv$classe, rf.predict)
 The accuracy on the cross validation set is ~96%, meaning that the out-of-sample error is ~4%.
 ```{r gbm_model, message = FALSE}
 gbm.model <- train(classe ~ ., data=train_training, method="gbm",
-                   trControl=control.parms)
+                   trControl=control.parms, verbose = FALSE)
 gbm.predict <- predict(gbm.model, train_cv)
 confusionMatrix(train_cv$classe, gbm.predict)
 ```
