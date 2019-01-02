@@ -1,0 +1,71 @@
+---
+title: "Machine Learning Course Project"
+author: "JYao"
+date: "1/2/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+## Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).  - From Course Website
+
+
+## Load and clean the data
+A quick look at the training data finds that most columns contain no data ("", "NA", or "DIV/0!") for most rows. This is because there seems to be two types of data. Entries where the "new_window" field == "yes" has a lot more data fields, but entries where "new_window" == "no" has much less data fields. The testing data contain only entries where "new_window" field == "no". Since the testing data is used for predictions, start by finding the fields in the testing data that contains data. Then, extract those fields in the training data and see if they are informative via the nearZeroVar function.  Furthermore, the first 6 rows (7 if row numbers are included) contain metadata that is not useful for prediction, so remove those data. Finally, partitition the training data into 75/25 training/cross validation sets. 
+
+
+```{r load_data}
+library(caret)
+set.seed(123456)
+training <- read.csv("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv", na.strings=c("NA","#DIV/0!",""), row.names = 1)
+test <- read.csv("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv", na.strings=c("NA","#DIV/0!",""), row.names = 1)    
+test1 <- test[,7:dim(training)[2]] ## remove metadata col 1-6
+sapply(test1, function(x) sum(is.na(x))) ##columns either all contain data or NA
+good_columns <- names(test1)[sapply(test1, function(x) sum(is.na(x)) == 0)]  ##remove fields that contain NA
+good_columns <- good_columns[-length(good_columns)] ##Remove the problem_id field for testing
+
+##Apply the valid columns to training and add classe column, which is the classification
+training1 <- training[, c(good_columns, "classe")]
+
+##None of the resulting predictors have near zero variance 
+nearZeroVar(training1, saveMetrics=TRUE)
+
+##Partition 
+in.training <- createDataPartition(training1$classe, p=0.75, list=F)
+train_training <- training1[in.training, ]
+train_cv <- training1[-in.training, ]
+```
+
+## Compare the random forest model to the gbm model
+The random forest (101 trees) and gbm model were built with 5 fold cross validation on the training set. Both models value accuracy at the expense of interpretability. This seems like a reasonable trade-off since there are 50+ predictors and potential interactions between the predictors, so the result might not be interpretable regardless of the model we use.  
+The out-of-sample error is estimated on the cross validation set. The model with the higher accuracy will be used to predict the test data. 
+
+### Try the random forest model with 101 trees. 
+The accuracy on the cross validation set is ~99%, meaning that the out-of-sample error is ~1%.
+```{r random_forest_model, message = FALSE}
+control.parms <- trainControl(method="cv", 5)
+rf.model <- train(classe ~ ., data=train_training, method="rf",
+                  trControl=control.parms, ntree=101)
+rf.model
+rf.predict <- predict(rf.model, train_cv)
+confusionMatrix(train_cv$classe, rf.predict)
+##predict(rf.model, test1)
+```
+
+## Try the gbm model
+The accuracy on the cross validation set is ~96%, meaning that the out-of-sample error is ~4%.
+```{r gbm_model, message = FALSE}
+gbm.model <- train(classe ~ ., data=train_training, method="gbm",
+                   trControl=control.parms)
+gbm.predict <- predict(gbm.model, train_cv)
+confusionMatrix(train_cv$classe, gbm.predict)
+```
+
+## Predict the test data
+Because the random forest model is more accurate as measured by cross-validation, it is used for prediction of the test set.
+```{r prediction}
+predict(rf.model, test1)
+```
